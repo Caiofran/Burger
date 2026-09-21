@@ -1,39 +1,840 @@
-const $=s=>document.querySelector(s), app=$('#app');
-const navItems=[['overview','◫','Visão geral'],['orders','◉','Pedidos','4'],['products','▣','Produtos'],['categories','▤','Categorias'],['addons','⊕','Adicionais'],['coupons','◇','Cupons'],['areas','⌖','Áreas de entrega'],['banners','▧','Banners e promoções'],['settings','⚙','Configurações']];
-const titles={overview:'Visão geral',orders:'Pedidos',products:'Produtos',categories:'Categorias',addons:'Adicionais',coupons:'Cupons',areas:'Áreas de entrega',banners:'Banners e promoções',settings:'Configurações'};
-let state=JSON.parse(localStorage.getItem('brasa-admin'))||{page:'overview',storeOpen:true,products:[],orders:[],categories:[],coupons:[],areas:[]},pendingAction=null;
-const assets={bacon:'assets/images/burger-bacon.png',costela:'assets/images/burger-costela.png',frango:'assets/images/brasa-salad.png',batata:'assets/images/batata-brasa.png',rings:'assets/images/onion-rings.png',hero:'assets/images/hero-brasa.png'};
-const seed={products:[['Brasa Bacon','Hambúrgueres',38.9,'bacon','Blend 160g, cheddar inglês, bacon e cebola caramelizada.',true,'MAIS PEDIDO'],['Duplo Cheddar','Hambúrgueres',42.9,'hero','Dois smash burgers, cheddar cremoso e picles.',true,'MAIS PEDIDO'],['Burger de Costela','Hambúrgueres',42.9,'costela','Costela bovina, queijo prato e barbecue defumado.',true,''],['Frango Crocante','Hambúrgueres',34.9,'frango','Frango empanado, coleslaw e maionese picante.',true,''],['Smash Clássico','Hambúrgueres',29.9,'bacon','Smash 120g, queijo e molho da casa.',false,'ESGOTADO'],['Combo Casal','Combos',89.9,'hero','Dois burgers, batata brasa e duas bebidas.',true,'DESTAQUE'],['Batata Brasa','Porções',24.9,'batata','Batata crocante, cheddar, bacon e páprica.',true,''],['Onion Rings','Porções',18.9,'rings','Anéis de cebola e barbecue defumado.',true,'']].map((p,i)=>({id:i+1,name:p[0],category:p[1],price:p[2],img:assets[p[3]],desc:p[4],active:p[5],tag:p[6]})),
- orders:[['#1048','Lucas Mendes','Novo',12,'Entrega',72.7],['#1047','Camila Rocha','Novo',8,'Retirada',42.9],['#1046','Rafael Souza','Confirmado',16,'Entrega',98.6],['#1045','Carla Dias','Preparação',22,'Entrega',64.8],['#1044','Mariana Lima','Preparação',19,'Retirada',55.8],['#1043','Pedro Alves','Preparação',28,'Entrega',86.7],['#1042','Beatriz Martins','Em entrega',34,'Entrega',78.8],['#1041','Thiago Costa','Em entrega',41,'Entrega',45.9],['#1040','Juliana Freitas','Em entrega',36,'Retirada',65.8]].map((o,i)=>({id:i+1,num:o[0],name:o[1],status:o[2],min:o[3],mode:o[4],total:o[5],items:i%2?2:3})),
- categories:[['Mais pedidos',4,true,1,'🔥'],['Hambúrgueres',5,true,2,'🍔'],['Combos',1,true,3,'✦'],['Porções',2,true,4,'🍟'],['Bebidas',4,true,5,'🥤'],['Sobremesas',2,false,6,'🍫']].map((x,i)=>({id:i+1,name:x[0],count:x[1],active:x[2],order:x[3],icon:x[4]})),
- coupons:[['BRASA15','Percentual','15%',30,87,200,'31/12/2026','Ativo'],['PRIMEIRACOMPRA','Valor fixo','R$ 10,00',35,124,500,'31/10/2026','Ativo'],['COMBO20','Percentual','20%',70,31,100,'20/08/2026','Agendado'],['FRETECENTRO','Frete grátis','—',25,100,100,'30/06/2026','Expirado']].map((x,i)=>({id:i+1,code:x[0],type:x[1],value:x[2],min:x[3],uses:x[4],limit:x[5],date:x[6],status:x[7]})),
- areas:[['Centro',6.9,'0–5 min',20,'01000-000 a 01099-999',true],['Jardins',8.9,'5–10 min',25,'01400-000 a 01499-999',true],['Vila Nova',5.9,'0–5 min',20,'03100-000 a 03199-999',true]].map((x,i)=>({id:i+1,name:x[0],fee:x[1],extra:x[2],min:x[3],cep:x[4],active:x[5]}))};
-for(const k in seed)if(!state[k].length)state[k]=seed[k];save();
-function save(){localStorage.setItem('brasa-admin',JSON.stringify(state))}function money(n){return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}function imgOf(p){return p.img||assets.bacon}
-function renderNav(){$('#nav').innerHTML=navItems.map(n=>`<button class="nav-item ${state.page===n[0]?'active':''}" data-page="${n[0]}"><span class="nav-icon">${n[1]}</span>${n[2]}${n[3]?`<span class="nav-badge">${n[3]}</span>`:''}</button>`).join('');document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page))}
-function go(page){state.page=page;save();renderNav();$('#pageTitle').textContent=titles[page];app.innerHTML='<div class="skeleton"></div><div class="skeleton" style="margin-top:12px"></div>';setTimeout(()=>{const views={overview,orders,products,categories,addons,coupons,areas,banners,settings};app.innerHTML=views[page]();app.focus()},180);if(innerWidth<760)toggleSidebar(false)}
-function overview(){let rows=state.orders.slice(0,5).map(orderRow).join('');return `<div class="welcome"><div><p class="eyebrow">RESUMO DO DIA</p><h2>Boa noite, Marina.</h2><p>A operação está fluindo bem — <b style="color:var(--amber)">4 pedidos</b> aguardam sua atenção.</p></div><span class="live">● Atualização automática · Agora mesmo</span></div><div class="metric-grid">${metric('Pedidos hoje','48','↑ 12% vs. ontem','◉')}${metric('Aguardando','4','Precisam de atenção','◷')}${metric('Em preparação','7','Tempo médio: 18 min','◌')}${metric('Faturamento','R$ 2.847,60','↑ 8,4% vs. ontem','◈')}</div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h3>Pedidos recentes</h3><small>TEMPO REAL</small></div><button class="link-button" onclick="go('orders')">Ver todos →</button></div>${rows}</section><section class="panel"><div class="panel-head"><div><h3>Faturamento semanal</h3><small>ÚLTIMOS 7 DIAS</small></div><select class="select"><option>Esta semana</option></select></div><p class="chart-total">R$ 15.420,80 <span class="up">↑ 14,2%</span></p><div class="bars">${[['Seg',46],['Ter',62],['Qua',40],['Qui',67],['Sex',96],['Sáb',79],['Dom',58]].map((b,i)=>`<div class="bar ${i===4?'today':''}"><i style="height:${b[1]}%"></i>${b[0]}</div>`).join('')}</div></section></div><div class="lower-grid"><section class="panel"><div class="panel-head"><div><h3>Mais vendidos</h3><small>DESTAQUES</small></div></div>${state.products.slice(0,4).map((p,i)=>`<div class="rank"><span>0${i+1}</span><img src="${imgOf(p)}"><div><b>${p.name}</b><small>${[124,98,81,76][i]} vendas</small></div><em>${money(p.price)}</em></div>`).join('')}</section><section class="panel"><div class="panel-head"><div><h3>Status da loja</h3><small>OPERAÇÃO</small></div></div><p class="op-status"><span class="dot ${state.storeOpen?'green':''}" style="background:${state.storeOpen?'':'var(--red)'}"></span>${state.storeOpen?'Aberta agora':'Pedidos pausados'}</p><div class="op-list">${state.storeOpen?'Fecha às 23h30':'Pausada manualmente'}<br>Tempo médio: 30–45 min<br>Pedido mínimo: R$ 20,00</div><button class="${state.storeOpen?'button-danger':'button'}" style="margin-top:16px" onclick="pauseStore()">${state.storeOpen?'Pausar pedidos':'Retomar pedidos'}</button></section></div>`}
-function metric(a,b,c,i){return `<article class="metric"><span class="metric-icon">${i}</span><small>${a}</small><strong>${b}</strong><em>${c}</em></article>`}function statusClass(s){return s==='Novo'?'new':s==='Preparação'||s==='Em preparo'?'prep':'delivery-status'}function orderRow(o){return `<div class="recent-row" onclick="openOrder(${o.id})"><div><b>${o.num}</b><small>${o.min} min</small></div><div><b>${o.name}</b><small>${o.items} itens · ${o.mode}</small></div><span class="status ${statusClass(o.status)}">${o.status==='Preparação'?'Em preparo':o.status}</span><div><b>${money(o.total)}</b></div></div>`}
-function orders(){let filters=['Todos','Novos','Em preparo','Em entrega'];let cols=[['Novos','Novo'],['Confirmados','Confirmado'],['Em preparação','Preparação'],['Em entrega','Em entrega']];return `<div class="toolbar"><div class="tabs">${filters.map((f,i)=>`<button class="${i===0?'active':''}" onclick="filterOrders('${f}',this)">${f} <b>${[48,4,7,3][i]}</b></button>`).join('')}</div><div class="toolbar-actions"><button class="button-secondary" onclick="toast('Atualizando pedidos…','info')">↻ Atualizar</button><button class="button" onclick="openOrderForm()">+ Novo pedido</button></div></div><div class="kanban" id="kanban">${cols.map(c=>kanbanCol(c[0],c[1],state.orders.filter(o=>o.status===c[1]))).join('')}</div>`}
-function kanbanCol(label,status,list){return `<section class="kanban-col" data-status="${status}"><h3>${label}<span>${list.length}</span></h3>${list.length?list.map(o=>`<article class="order-card" onclick="openOrder(${o.id})"><div class="order-top"><b>${o.num}</b><span class="elapsed">há ${o.min} min</span></div><p><b>${o.name}</b><br><small>${o.items} itens · ${o.mode}</small></p><div class="order-foot"><b>${money(o.total)}</b><button class="order-menu" onclick="event.stopPropagation();openOrder(${o.id})">•••</button></div></article>`).join(''):'<div class="empty">Nenhum pedido nesta etapa.</div>'}</section>`}
-function filterOrders(f,btn){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');let map={Todos:state.orders,Novos:state.orders.filter(o=>o.status==='Novo'),'Em preparo':state.orders.filter(o=>o.status==='Preparação'),'Em entrega':state.orders.filter(o=>o.status==='Em entrega')};let visible=map[f];$('#kanban').innerHTML=[['Novos','Novo'],['Confirmados','Confirmado'],['Em preparação','Preparação'],['Em entrega','Em entrega']].map(c=>kanbanCol(c[0],c[1],visible.filter(o=>o.status===c[1]))).join('')}
-function products(){return `<div class="product-tools"><div class="product-filters"><label class="search"><span>⌕</span><input placeholder="Buscar produtos" oninput="filterProducts(this.value)"></label><select class="select" onchange="filterProducts('',this.value)"><option value="">Todas categorias</option><option>Hambúrgueres</option><option>Combos</option><option>Porções</option></select><select class="select" onchange="availability(this.value)"><option value="">Disponibilidade</option><option value="active">Ativos</option><option value="inactive">Inativos</option></select></div><div class="toolbar-actions"><button class="button-secondary" onclick="toast('Modo de reordenação ativado','info')">↕ Reordenar</button><button class="button" onclick="openProductForm()">+ Novo produto</button></div></div><div class="products-grid" id="productsGrid">${productCards(state.products)}</div>`}
-function productCards(list){return list.length?list.map(p=>`<article class="product-card ${p.active?'':'inactive'}"><div class="product-img"><img src="${imgOf(p)}" alt="${p.name}">${p.tag?`<span class="tag ${p.tag==='ESGOTADO'?'stockout':''}">${p.tag}</span>`:''}</div><div class="product-body"><small class="eyebrow">${p.category}</small><h3>${p.name}</h3><p>${p.desc}</p><div class="product-bottom"><strong>${money(+p.price)}</strong><input class="switch" type="checkbox" ${p.active?'checked':''} onchange="toggleProduct(${p.id},this.checked)"></div></div><div class="card-actions"><button onclick="openProductForm(${p.id})">Editar</button><button onclick="duplicateProduct(${p.id})">Duplicar</button><button onclick="stockProduct(${p.id})">${p.tag==='ESGOTADO'?'Repor':'Esgotar'}</button><button onclick="confirmDelete('produto',${p.id})">Excluir</button></div></article>`).join(''):'<div class="empty">Nenhum produto encontrado.</div>'}
-function filterProducts(v='',cat=''){let q=v.toLowerCase();$('#productsGrid').innerHTML=productCards(state.products.filter(p=>p.name.toLowerCase().includes(q)&&(!cat||p.category===cat)))}function availability(v){$('#productsGrid').innerHTML=productCards(state.products.filter(p=>!v||(v==='active'?p.active:!p.active)))}
-function tableHead(cols){return `<thead><tr>${cols.map(x=>`<th>${x}</th>`).join('')}<th>AÇÕES</th></tr></thead>`}function categories(){return `<div class="toolbar"><label class="search"><span>⌕</span><input placeholder="Buscar categoria" oninput="filterTable('categories',this.value)"></label><button class="button" onclick="openSimpleForm('category')">+ Nova categoria</button></div><section class="panel data-panel"><table class="table" id="categoriesTable">${tableHead(['CATEGORIA','PRODUTOS','STATUS','ORDEM'])}<tbody>${categoryRows(state.categories)}</tbody></table></section>`}function categoryRows(a){return a.map(x=>`<tr><td><b style="font-size:18px;margin-right:10px">${x.icon}</b><b>${x.name}</b></td><td>${x.count} produtos</td><td><input type="checkbox" class="switch" ${x.active?'checked':''} onchange="x=this.checked;persistRow('categories',${x.id},'active',x)"></td><td>#${x.order}</td>${actionCells('category',x.id)}</tr>`).join('')}
-function addons(){let a=[['Ponto da carne','Obrigatório','1','1','Hambúrgueres','Ao ponto, Mal passado, Bem passado','Ativo'],['Molhos','Opcional','0','2','Todos os burgers','Maionese da casa, Barbecue, Picante','Ativo'],['Extras','Opcional','0','3','Hambúrgueres e combos','Bacon +R$ 4,50, Cheddar +R$ 3,50, Cebola','Ativo'],['Retirar ingredientes','Opcional','0','4','Hambúrgueres','Sem cebola, Sem picles, Sem molho','Ativo']];return `<div class="toolbar"><div><p class="eyebrow">PERSONALIZAÇÃO DE PRODUTOS</p><h2 class="section-title">Grupos de adicionais</h2></div><button class="button" onclick="openSimpleForm('addon')">+ Novo grupo</button></div><section class="panel data-panel"><table class="table">${tableHead(['GRUPO','REGRAS','PRODUTOS','OPÇÕES','STATUS'])}<tbody>${a.map((x,i)=>`<tr><td><b>${x[0]}</b><br><small style="color:var(--muted)">${x[1]}</small></td><td>Mín. ${x[2]} · Máx. ${x[3]}</td><td>${x[4]}</td><td>${x[5]}</td><td><span class="mini-status" style="color:var(--green)">● ${x[6]}</span></td>${actionCells('addon',i+1)}</tr>`).join('')}</tbody></table></section>`}
-function coupons(){return `<div class="toolbar"><label class="search"><span>⌕</span><input placeholder="Buscar cupom" oninput="filterTable('coupons',this.value)"></label><button class="button" onclick="openSimpleForm('coupon')">+ Novo cupom</button></div><section class="panel data-panel"><table class="table" id="couponsTable">${tableHead(['CÓDIGO','DESCONTO','PEDIDO MÍNIMO','USOS','VALIDADE','STATUS'])}<tbody>${couponRows(state.coupons)}</tbody></table></section>`}function couponRows(a){return a.map(x=>`<tr><td><b style="color:var(--orange)">${x.code}</b><br><small style="color:var(--muted)">${x.type}</small></td><td>${x.value}</td><td>R$ ${x.min},00</td><td>${x.uses} / ${x.limit}</td><td>${x.date}</td><td><span class="status ${x.status==='Ativo'?'delivery-status':x.status==='Agendado'?'new':'new'}">${x.status}</span></td>${actionCells('coupon',x.id)}</tr>`).join('')}
-function areas(){return `<div class="toolbar"><div><p class="eyebrow">COBERTURA</p><h2 class="section-title">Áreas de entrega</h2></div><button class="button" onclick="openSimpleForm('area')">+ Nova área</button></div><div class="dashboard-grid"><section class="panel data-panel"><table class="table">${tableHead(['REGIÃO','TAXA','TEMPO EXTRA','MÍNIMO','CEP / RAIO','STATUS'])}<tbody>${state.areas.map(x=>`<tr><td><b>${x.name}</b></td><td style="color:var(--orange)">${money(x.fee)}</td><td>${x.extra}</td><td>R$ ${x.min},00</td><td>${x.cep}</td><td><input class="switch" type="checkbox" ${x.active?'checked':''} onchange="persistRow('areas',${x.id},'active',this.checked)"></td>${actionCells('area',x.id)}</tr>`).join('')}</tbody></table></section><section class="panel"><div class="panel-head"><div><h3>Mapa de cobertura</h3><small>VISUALIZAÇÃO SIMPLIFICADA</small></div></div><div class="map"><i class="pin" style="left:48%;top:44%"></i><i class="pin" style="left:25%;top:25%"></i><i class="pin" style="left:68%;top:69%"></i></div><p style="font-size:11px;color:var(--muted)">● Centro &nbsp; ● Jardins &nbsp; ● Vila Nova</p></section></div>`}
-function banners(){let a=[['Quinta da Brasa','Toda quinta · 18h–23h30','/promocoes/quinta','Ativo',1,'hero'],['Combo Casal','01/07 a 31/08','/combos/casal','Ativo',2,'bacon'],['Frete grátis no Centro','Agendado · 20/08 a 27/08','/cupom/fretecentro','Agendado',3,'costela']];return `<div class="toolbar"><div><p class="eyebrow">CAMPANHAS</p><h2 class="section-title">Banners e promoções</h2></div><button class="button" onclick="openSimpleForm('banner')">+ Nova campanha</button></div><div class="products-grid">${a.map((x,i)=>`<article class="product-card"><div class="product-img"><img src="${assets[x[5]]}" alt=""><span class="tag">${x[3]}</span></div><div class="product-body"><small class="eyebrow">PRIORIDADE ${x[4]} · DESKTOP / MOBILE</small><h3>${x[0]}</h3><p>${x[1]}<br>Destino: ${x[2]}</p><div class="product-bottom"><strong>${x[3]}</strong><input class="switch" type="checkbox" ${x[3]==='Ativo'?'checked':''} onchange="toast('Status da campanha atualizado','ok')"></div></div><div class="card-actions"><button onclick="openSimpleForm('banner','${x[0]}')">Editar</button><button onclick="toast('Campanha duplicada','ok')">Duplicar</button><button onclick="confirmDelete('campanha',${i})">Excluir</button></div></article>`).join('')}</div>`}
-function settings(){let tabs=['Dados da loja','Operação','Horários','Pagamentos','Entrega e retirada','Notificações','Usuários'];return `<div class="settings-tabs">${tabs.map((x,i)=>`<button class="${i===0?'active':''}" onclick="renderSetting('${x}',this)">${x}</button>`).join('')}</div><section class="panel settings-panel" id="settingsPanel">${settingsContent('Dados da loja')}</section>`}function settingsContent(t){let bodies={'Dados da loja':`<h3>Dados da loja</h3><p>Informações exibidas para clientes e na operação.</p>${fields([['Nome da loja','Brasa Burger Co.'],['CNPJ','12.345.678/0001-90'],['Telefone','(11) 3333-2026'],['WhatsApp','(11) 99999-2026'],['E-mail','contato@brasaburger.com.br'],['Endereço','Rua das Brasas, 147 — Centro']])}`,'Operação':`<h3>Operação</h3><p>Controle a disponibilidade e o ritmo da loja.</p><div class="toggle-line">Loja aberta <input class="switch" type="checkbox" ${state.storeOpen?'checked':''} onchange="pauseStore()"></div>${fields([['Tempo médio','30–45 min'],['Pedido mínimo','R$ 20,00'],['Motivo da pausa temporária','Sem pausa ativa']])}`,'Horários':`<h3>Horários de funcionamento</h3><p>Fuso de Brasília · configure cada dia individualmente.</p>${['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'].map((d,i)=>`<div class="toggle-line">${d}<span><input class="switch" type="checkbox" ${i?'checked':''}> <small style="color:var(--muted);margin-left:8px">${i?'18:00 às 23:30':'Fechada'}</small></span></div>`).join('')}`,'Pagamentos':`<h3>Formas de pagamento</h3><p>Defina meios aceitos no pedido demonstrativo.</p>${['Pix','Cartão de crédito','Cartão de débito','Dinheiro','Pagamento online'].map((x,i)=>`<div class="toggle-line">${x}<input class="switch" type="checkbox" ${i<4?'checked':''}></div>`).join('')}`,'Entrega e retirada':`<h3>Entrega e retirada</h3><p>Preferências de atendimento para o cliente.</p>${['Habilitar entrega','Habilitar retirada no balcão'].map(x=>`<div class="toggle-line">${x}<input class="switch" type="checkbox" checked></div>`).join('')}${fields([['Prazo padrão de entrega','30–45 min'],['Orientações de retirada','Aguarde a confirmação antes de se dirigir à loja.']])}`,'Notificações':`<h3>Notificações</h3><p>Alertas visuais e canais demonstrativos.</p>${['Som de novo pedido','Alertas visuais no painel','Notificar por WhatsApp','Notificar por e-mail'].map((x,i)=>`<div class="toggle-line">${x}<input class="switch" type="checkbox" ${i<2?'checked':''}></div>`).join('')}`,'Usuários':`<h3>Usuários administrativos</h3><p>Controle de acesso demonstrativo.</p><table class="table"><tbody><tr><td><b>Marina Silva</b><br><small style="color:var(--muted)">marina@brasaburger.com.br</small></td><td>Administrador</td><td><span class="mini-status" style="color:var(--green)">● Ativo</span></td><td><button class="button-secondary" onclick="toast('Permissões de Marina abertas','info')">Permissões</button></td></tr><tr><td><b>Eduardo Costa</b><br><small style="color:var(--muted)">eduardo@brasaburger.com.br</small></td><td>Operação</td><td><span class="mini-status" style="color:var(--green)">● Ativo</span></td><td><button class="button-secondary" onclick="toast('Permissões de Eduardo abertas','info')">Permissões</button></td></tr></tbody></table>`};return bodies[t]+`<div class="modal-foot"><button class="button" onclick="toast('Configurações salvas','ok')">Salvar alterações</button></div>`}function fields(a){return `<div class="form-grid">${a.map(x=>`<div class="field"><label>${x[0]}</label><input value="${x[1]}"></div>`).join('')}</div>`}function renderSetting(t,b){document.querySelectorAll('.settings-tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#settingsPanel').innerHTML=settingsContent(t)}
-function actionCells(type,id){return `<td class="row-actions"><button onclick="openSimpleForm('${type}',${id})">✎</button><button onclick="toast('Item duplicado com sucesso','ok')">⧉</button><button onclick="confirmDelete('${type}',${id})">⌫</button></td>`}function persistRow(col,id,key,val){let o=state[col].find(x=>x.id===id);o[key]=val;save();toast('Status atualizado','ok')}
-function openOrder(id){let o=state.orders.find(x=>x.id===id), fee=o.mode==='Entrega'?6.9:0,subtotal=o.total-fee;$('#drawer').innerHTML=`<div class="drawer-head"><div><p class="eyebrow">PEDIDO ${o.num}</p><h2>${o.status}</h2><span class="status ${statusClass(o.status)}">há ${o.min} min</span></div><button class="close" onclick="closeOverlays()">×</button></div><div class="customer"><b>${o.name}</b><small>(11) 9${o.id}888-2026 · ${o.mode}</small></div><div class="drawer-section"><h4>ITENS DO PEDIDO</h4><div class="item-line"><div><b>1× Brasa Bacon</b><small>Sem cebola · Bacon extra</small></div><b>R$ 43,40</b></div>${o.items>2?'<div class="item-line"><div><b>1× Batata Brasa</b><small>Cheddar e bacon</small></div><b>R$ 24,90</b></div>':''}</div><div class="drawer-section"><h4>RESUMO</h4><div class="total-line"><span>Subtotal</span><span>${money(subtotal)}</span></div><div class="total-line"><span>Taxa de entrega</span><span>${fee?money(fee):'Grátis'}</span></div><div class="total-line"><span>Desconto</span><span>R$ 0,00</span></div><div class="total-line total"><span>Total</span><span>${money(o.total)}</span></div></div><div class="drawer-section"><h4>${o.mode==='Entrega'?'ENDEREÇO DE ENTREGA':'RETIRADA NO BALCÃO'}</h4><p style="font-size:12px;line-height:1.6;margin:0">${o.mode==='Entrega'?'Rua das Palmeiras, 242 · Apto 82<br>Jardins — São Paulo/SP<br><span style="color:var(--muted)">Referência: portão preto ao lado da farmácia.</span>':'Rua das Brasas, 147 — Centro'}</p></div><div class="drawer-section"><h4>ATENDIMENTO</h4><p style="font-size:12px">Prazo estimado: <b>35–50 min</b><br>Pagamento: <b>Pix na entrega</b><br>Troco: <b>Não precisa</b></p></div><div class="drawer-section"><h4>LINHA DO TEMPO</h4><div class="timeline"><p>Pedido recebido · há ${o.min} min</p>${o.status!=='Novo'?'<p>Pedido confirmado pela operação</p>':''}${o.status==='Preparação'||o.status==='Em entrega'?'<p>Pedido enviado para a cozinha</p>':''}</div></div><div class="drawer-actions"><button class="button-secondary" onclick="toast('Comanda enviada para impressão','ok')">⌑ Imprimir comanda</button><button class="button-secondary" onclick="toast('Abrindo conversa no WhatsApp','info')">◔ Falar com cliente</button><button class="button-danger" onclick="confirmReject(${o.id})">Recusar pedido</button><button class="button wide" onclick="advanceOrder(${o.id})">${o.status==='Novo'?'Confirmar pedido':o.status==='Confirmado'?'Enviar para preparo':o.status==='Preparação'?'Saiu para entrega':'Pedido entregue'} →</button></div>`;$('#backdrop').classList.add('show');$('#drawer').classList.add('show')}
-function advanceOrder(id){let o=state.orders.find(x=>x.id===id),map={Novo:'Confirmado',Confirmado:'Preparação',Preparação:'Em entrega','Em entrega':'Entregue'};o.status=map[o.status];save();toast(`Pedido ${o.num} atualizado para ${o.status}`,'ok');closeOverlays();if(state.page==='orders')go('orders');else go(state.page)}function confirmReject(id){confirmAction('Recusar pedido?','O pedido será marcado como recusado.',()=>{state.orders=state.orders.filter(o=>o.id!==id);save();closeOverlays();toast('Pedido recusado','error');go(state.page)})}
-function openProductForm(id){let p=id?state.products.find(x=>x.id===id):{name:'',desc:'',category:'Hambúrgueres',price:'',img:'',active:true,tag:''};openModal(`<div class="modal-head"><div><p class="eyebrow">${id?'EDITAR':'CADASTRAR'} PRODUTO</p><h2>${id?'Editar produto':'Novo produto'}</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="image-upload full" id="preview" onclick="this.querySelector('input').click()">${p.img?`<img src="${p.img}">`:'Clique para escolher uma imagem'}<input type="file" accept="image/*" style="display:none" onchange="previewFile(this)"></div><div class="field"><label>Nome *</label><input id="prodName" value="${p.name}" placeholder="Ex.: Brasa Bacon"></div><div class="field"><label>Categoria *</label><select id="prodCat"><option>${p.category}</option><option>Hambúrgueres</option><option>Combos</option><option>Porções</option></select></div><div class="field full"><label>Descrição *</label><textarea id="prodDesc">${p.desc}</textarea></div><div class="field"><label>Preço *</label><input id="prodPrice" value="${p.price}" placeholder="38,90"></div><div class="field"><label>Preço promocional</label><input placeholder="Opcional"></div><div class="field"><label>Ingredientes</label><input value="Blend, cheddar, bacon, molho da casa"></div><div class="field"><label>Grupo de adicionais</label><select><option>Extras e molhos</option><option>Ponto da carne</option></select></div><div class="field"><label>Tempo de preparo</label><input value="18 min"></div><div class="field"><label>Código interno</label><input placeholder="Opcional"></div></div><div class="toggle-line">Produto ativo<input class="switch" id="prodActive" type="checkbox" ${p.active?'checked':''}></div><div class="toggle-line">Marcar como destaque<input class="switch" id="prodFeatured" type="checkbox" ${p.tag?'checked':''}></div><div class="toggle-line">Marcar como esgotado<input class="switch" id="prodStock" type="checkbox" ${p.tag==='ESGOTADO'?'checked':''}></div><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button" onclick="saveProduct(${id||0})">Salvar produto</button></div>`)}
-function previewFile(input){let f=input.files[0];if(f){let r=new FileReader();r.onload=()=>$('#preview').innerHTML=`<img src="${r.result}">`;r.readAsDataURL(f)}}function saveProduct(id){let n=$('#prodName').value.trim(),d=$('#prodDesc').value.trim(),price=parseFloat($('#prodPrice').value.replace(',','.'));if(!n||!d||!price){if(!n)$('#prodName').parentElement.classList.add('invalid');if(!d)$('#prodDesc').parentElement.classList.add('invalid');if(!price)$('#prodPrice').parentElement.classList.add('invalid');toast('Preencha os campos obrigatórios','error');return}let obj={id:id||Date.now(),name:n,desc:d,price,category:$('#prodCat').value,img:id?state.products.find(p=>p.id===id).img:assets.bacon,active:$('#prodActive').checked,tag:$('#prodStock').checked?'ESGOTADO':$('#prodFeatured').checked?'DESTAQUE':''};if(id)Object.assign(state.products.find(p=>p.id===id),obj);else state.products.unshift(obj);save();closeModal();toast(id?'Produto atualizado':'Produto criado com sucesso','ok');go('products')}
-function openSimpleForm(type,id=''){let labels={category:['categoria','Nome da categoria','Ordem de exibição'],addon:['grupo de adicionais','Nome do grupo','Mínimo / máximo'],coupon:['cupom','Código','Tipo de desconto'],area:['área de entrega','Nome da região','Taxa de entrega'],banner:['campanha','Título','Período de exibição']}[type];openModal(`<div class="modal-head"><div><p class="eyebrow">GERENCIAR ${labels[0].toUpperCase()}</p><h2>${id?'Editar':'Novo'} ${labels[0]}</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field full"><label>${labels[1]} *</label><input id="simpleName" value="${typeof id==='string'?id:''}" placeholder="Informe ${labels[1].toLowerCase()}"></div><div class="field"><label>${labels[2]}</label><input placeholder="Informe um valor"></div><div class="field"><label>Status</label><select><option>Ativo</option><option>Inativo</option></select></div><div class="field full"><label>Observações</label><textarea placeholder="Informações adicionais para a operação"></textarea></div></div><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button" onclick="saveSimple('${type}',${typeof id==='number'?id:0})">Salvar</button></div>`)}function saveSimple(type,id){let n=$('#simpleName').value.trim();if(!n){$('#simpleName').parentElement.classList.add('invalid');toast('Preencha o campo obrigatório','error');return}if(type==='category'&&!id)state.categories.push({id:Date.now(),name:n,count:0,active:true,order:state.categories.length+1,icon:'◈'});if(type==='coupon'&&!id)state.coupons.unshift({id:Date.now(),code:n.toUpperCase(),type:'Percentual',value:'10%',min:20,uses:0,limit:100,date:'31/12/2026',status:'Ativo'});if(type==='area'&&!id)state.areas.push({id:Date.now(),name:n,fee:7.9,extra:'5–10 min',min:20,cep:'A definir',active:true});save();closeModal();toast(`${labelsFor(type)} salvo com sucesso`,'ok');go(state.page)}function labelsFor(t){return {category:'Categoria',addon:'Grupo de adicionais',coupon:'Cupom',area:'Área de entrega',banner:'Campanha'}[t]}
-function toggleProduct(id,x){state.products.find(p=>p.id===id).active=x;save();toast(x?'Produto ativado':'Produto desativado','ok')}function duplicateProduct(id){let p=state.products.find(p=>p.id===id);state.products.push({...p,id:Date.now(),name:p.name+' (cópia)'});save();toast('Produto duplicado','ok');go('products')}function stockProduct(id){let p=state.products.find(p=>p.id===id);p.tag=p.tag==='ESGOTADO'?'':'ESGOTADO';save();toast(p.tag?'Produto marcado como esgotado':'Produto disponível novamente','ok');go('products')}
-function confirmDelete(type,id){confirmAction(`Excluir ${labelsFor(type)||type}?`,'Esta ação pode ser desfeita somente recriando o item.',()=>{let map={produto:'products',category:'categories',coupon:'coupons',area:'areas'};if(map[type])state[map[type]]=state[map[type]].filter(x=>x.id!==id);save();closeModal();toast(`${labelsFor(type)||type} excluído`, 'error');go(state.page)})}function confirmAction(title,text,fn){pendingAction=fn;openModal(`<div class="modal-head"><div><p class="eyebrow">CONFIRMAÇÃO</p><h2>${title}</h2></div><button class="close" onclick="closeModal()">×</button></div><p style="color:var(--muted);line-height:1.6">${text}</p><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button-danger" onclick="runConfirm()">Confirmar ação</button></div>`)}function runConfirm(){if(pendingAction){let action=pendingAction;pendingAction=null;action()}}
-function openOrderForm(){openModal(`<div class="modal-head"><div><p class="eyebrow">LANÇAMENTO MANUAL</p><h2>Novo pedido</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Cliente *</label><input id="manualName" placeholder="Nome do cliente"></div><div class="field"><label>Modalidade *</label><select id="manualMode"><option>Entrega</option><option>Retirada</option></select></div><div class="field"><label>Itens</label><select><option>Brasa Bacon + Batata</option><option>Combo Casal</option></select></div><div class="field"><label>Total</label><input id="manualTotal" value="45,80"></div></div><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button" onclick="saveManualOrder()">Criar pedido</button></div>`)}function saveManualOrder(){let n=$('#manualName').value.trim();if(!n){toast('Informe o nome do cliente','error');return}state.orders.unshift({id:Date.now(),num:'#'+(1049+state.orders.length),name:n,status:'Novo',min:0,mode:$('#manualMode').value,total:+$('#manualTotal').value.replace(',','.'),items:2});save();closeModal();toast('Novo pedido criado','ok');go('orders')}
-function pauseStore(){state.storeOpen=!state.storeOpen;save();$('#storeStatus').textContent=state.storeOpen?'Loja aberta':'Loja pausada';toast(state.storeOpen?'Pedidos retomados':'Pedidos pausados temporariamente',state.storeOpen?'ok':'info');go(state.page)}function openModal(content){$('#modalRoot').innerHTML=`<div class="modal form-modal show">${content}</div>`;$('#backdrop').classList.add('show')}function closeModal(){$('#modalRoot').innerHTML='';$('#backdrop').classList.remove('show')}function closeOverlays(){closeModal();$('#drawer').classList.remove('show');$('#backdrop').classList.remove('show')}function toast(msg,type='ok'){let el=document.createElement('div');el.className='toast '+(type==='ok'?'':type);el.textContent=msg;$('#toastRoot').append(el);setTimeout(()=>el.remove(),3200)}function toggleSidebar(force){let s=$('#sidebar'),shade=$('.mobile-shade'),show=force===undefined?!s.classList.contains('show'):force;s.classList.toggle('show',show);shade.classList.toggle('show',show)}function globalSearch(v){if(!v)return;if(state.page!=='orders')go('orders');setTimeout(()=>{let cards=[...document.querySelectorAll('.order-card')];cards.forEach(c=>c.style.display=c.textContent.toLowerCase().includes(v.toLowerCase())?'block':'none')},240)}function filterTable(type,q){let val=q.toLowerCase();if(type==='categories')$('#categoriesTable tbody').innerHTML=categoryRows(state.categories.filter(x=>x.name.toLowerCase().includes(val)));if(type==='coupons')$('#couponsTable tbody').innerHTML=couponRows(state.coupons.filter(x=>x.code.toLowerCase().includes(val)))}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeOverlays()});renderNav();go(state.page);
+const $ = (s) => document.querySelector(s),
+  app = $("#app");
+const navItems = [
+  ["overview", "◫", "Visão geral"],
+  ["orders", "◉", "Pedidos", "4"],
+  ["products", "▣", "Produtos"],
+  ["categories", "▤", "Categorias"],
+  ["addons", "⊕", "Adicionais"],
+  ["coupons", "◇", "Cupons"],
+  ["areas", "⌖", "Áreas de entrega"],
+  ["banners", "▧", "Banners e promoções"],
+  ["settings", "⚙", "Configurações"],
+];
+const titles = {
+  overview: "Visão geral",
+  orders: "Pedidos",
+  products: "Produtos",
+  categories: "Categorias",
+  addons: "Adicionais",
+  coupons: "Cupons",
+  areas: "Áreas de entrega",
+  banners: "Banners e promoções",
+  settings: "Configurações",
+};
+let state = JSON.parse(localStorage.getItem("brasa-admin")) || {
+    page: "overview",
+    storeOpen: true,
+    products: [],
+    orders: [],
+    categories: [],
+    coupons: [],
+    areas: [],
+  },
+  pendingAction = null;
+const assets = {
+  bacon: "assets/images/burger-bacon.png",
+  costela: "assets/images/burger-costela.png",
+  frango: "assets/images/brasa-salad.png",
+  batata: "assets/images/batata-brasa.png",
+  rings: "assets/images/onion-rings.png",
+  hero: "assets/images/hero-brasa.png",
+};
+const seed = {
+  products: [
+    [
+      "Brasa Bacon",
+      "Hambúrgueres",
+      38.9,
+      "bacon",
+      "Blend 160g, cheddar inglês, bacon e cebola caramelizada.",
+      true,
+      "MAIS PEDIDO",
+    ],
+    [
+      "Duplo Cheddar",
+      "Hambúrgueres",
+      42.9,
+      "hero",
+      "Dois smash burgers, cheddar cremoso e picles.",
+      true,
+      "MAIS PEDIDO",
+    ],
+    [
+      "Burger de Costela",
+      "Hambúrgueres",
+      42.9,
+      "costela",
+      "Costela bovina, queijo prato e barbecue defumado.",
+      true,
+      "",
+    ],
+    [
+      "Frango Crocante",
+      "Hambúrgueres",
+      34.9,
+      "frango",
+      "Frango empanado, coleslaw e maionese picante.",
+      true,
+      "",
+    ],
+    [
+      "Smash Clássico",
+      "Hambúrgueres",
+      29.9,
+      "bacon",
+      "Smash 120g, queijo e molho da casa.",
+      false,
+      "ESGOTADO",
+    ],
+    [
+      "Combo Casal",
+      "Combos",
+      89.9,
+      "hero",
+      "Dois burgers, batata brasa e duas bebidas.",
+      true,
+      "DESTAQUE",
+    ],
+    [
+      "Batata Brasa",
+      "Porções",
+      24.9,
+      "batata",
+      "Batata crocante, cheddar, bacon e páprica.",
+      true,
+      "",
+    ],
+    [
+      "Onion Rings",
+      "Porções",
+      18.9,
+      "rings",
+      "Anéis de cebola e barbecue defumado.",
+      true,
+      "",
+    ],
+  ].map((p, i) => ({
+    id: i + 1,
+    name: p[0],
+    category: p[1],
+    price: p[2],
+    img: assets[p[3]],
+    desc: p[4],
+    active: p[5],
+    tag: p[6],
+  })),
+  orders: [
+    ["#1048", "Lucas Mendes", "Novo", 12, "Entrega", 72.7],
+    ["#1047", "Camila Rocha", "Novo", 8, "Retirada", 42.9],
+    ["#1046", "Rafael Souza", "Confirmado", 16, "Entrega", 98.6],
+    ["#1045", "Carla Dias", "Preparação", 22, "Entrega", 64.8],
+    ["#1044", "Mariana Lima", "Preparação", 19, "Retirada", 55.8],
+    ["#1043", "Pedro Alves", "Preparação", 28, "Entrega", 86.7],
+    ["#1042", "Beatriz Martins", "Em entrega", 34, "Entrega", 78.8],
+    ["#1041", "Thiago Costa", "Em entrega", 41, "Entrega", 45.9],
+    ["#1040", "Juliana Freitas", "Em entrega", 36, "Retirada", 65.8],
+  ].map((o, i) => ({
+    id: i + 1,
+    num: o[0],
+    name: o[1],
+    status: o[2],
+    min: o[3],
+    mode: o[4],
+    total: o[5],
+    items: i % 2 ? 2 : 3,
+  })),
+  categories: [
+    ["Mais pedidos", 4, true, 1, "🔥"],
+    ["Hambúrgueres", 5, true, 2, "🍔"],
+    ["Combos", 1, true, 3, "✦"],
+    ["Porções", 2, true, 4, "🍟"],
+    ["Bebidas", 4, true, 5, "🥤"],
+    ["Sobremesas", 2, false, 6, "🍫"],
+  ].map((x, i) => ({
+    id: i + 1,
+    name: x[0],
+    count: x[1],
+    active: x[2],
+    order: x[3],
+    icon: x[4],
+  })),
+  coupons: [
+    ["BRASA15", "Percentual", "15%", 30, 87, 200, "31/12/2026", "Ativo"],
+    [
+      "PRIMEIRACOMPRA",
+      "Valor fixo",
+      "R$ 10,00",
+      35,
+      124,
+      500,
+      "31/10/2026",
+      "Ativo",
+    ],
+    ["COMBO20", "Percentual", "20%", 70, 31, 100, "20/08/2026", "Agendado"],
+    [
+      "FRETECENTRO",
+      "Frete grátis",
+      "—",
+      25,
+      100,
+      100,
+      "30/06/2026",
+      "Expirado",
+    ],
+  ].map((x, i) => ({
+    id: i + 1,
+    code: x[0],
+    type: x[1],
+    value: x[2],
+    min: x[3],
+    uses: x[4],
+    limit: x[5],
+    date: x[6],
+    status: x[7],
+  })),
+  areas: [
+    ["Centro", 6.9, "0–5 min", 20, "01000-000 a 01099-999", true],
+    ["Jardins", 8.9, "5–10 min", 25, "01400-000 a 01499-999", true],
+    ["Vila Nova", 5.9, "0–5 min", 20, "03100-000 a 03199-999", true],
+  ].map((x, i) => ({
+    id: i + 1,
+    name: x[0],
+    fee: x[1],
+    extra: x[2],
+    min: x[3],
+    cep: x[4],
+    active: x[5],
+  })),
+};
+for (const k in seed) if (!state[k].length) state[k] = seed[k];
+save();
+function save() {
+  localStorage.setItem("brasa-admin", JSON.stringify(state));
+}
+function money(n) {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function imgOf(p) {
+  return p.img || assets.bacon;
+}
+function renderNav() {
+  $("#nav").innerHTML = navItems
+    .map(
+      (n) =>
+        `<button class="nav-item ${state.page === n[0] ? "active" : ""}" data-page="${n[0]}"><span class="nav-icon">${n[1]}</span>${n[2]}${n[3] ? `<span class="nav-badge">${n[3]}</span>` : ""}</button>`,
+    )
+    .join("");
+  document
+    .querySelectorAll("[data-page]")
+    .forEach((b) => (b.onclick = () => go(b.dataset.page)));
+}
+function go(page) {
+  state.page = page;
+  save();
+  renderNav();
+  $("#pageTitle").textContent = titles[page];
+  app.innerHTML =
+    '<div class="skeleton"></div><div class="skeleton" style="margin-top:12px"></div>';
+  setTimeout(() => {
+    const views = {
+      overview,
+      orders,
+      products,
+      categories,
+      addons,
+      coupons,
+      areas,
+      banners,
+      settings,
+    };
+    app.innerHTML = views[page]();
+    app.focus();
+  }, 180);
+  if (innerWidth < 760) toggleSidebar(false);
+}
+function overview() {
+  let rows = state.orders.slice(0, 5).map(orderRow).join("");
+  return `<div class="welcome"><div><p class="eyebrow">RESUMO DO DIA</p><h2>Boa noite, Marina.</h2><p>A operação está fluindo bem — <b style="color:var(--amber)">4 pedidos</b> aguardam sua atenção.</p></div><span class="live">● Atualização automática · Agora mesmo</span></div><div class="metric-grid">${metric("Pedidos hoje", "48", "↑ 12% vs. ontem", "◉")}${metric("Aguardando", "4", "Precisam de atenção", "◷")}${metric("Em preparação", "7", "Tempo médio: 18 min", "◌")}${metric("Faturamento", "R$ 2.847,60", "↑ 8,4% vs. ontem", "◈")}</div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h3>Pedidos recentes</h3><small>TEMPO REAL</small></div><button class="link-button" onclick="go('orders')">Ver todos →</button></div>${rows}</section><section class="panel"><div class="panel-head"><div><h3>Faturamento semanal</h3><small>ÚLTIMOS 7 DIAS</small></div><select class="select"><option>Esta semana</option></select></div><p class="chart-total">R$ 15.420,80 <span class="up">↑ 14,2%</span></p><div class="bars">${[
+    ["Seg", 46],
+    ["Ter", 62],
+    ["Qua", 40],
+    ["Qui", 67],
+    ["Sex", 96],
+    ["Sáb", 79],
+    ["Dom", 58],
+  ]
+    .map(
+      (b, i) =>
+        `<div class="bar ${i === 4 ? "today" : ""}"><i style="height:${b[1]}%"></i>${b[0]}</div>`,
+    )
+    .join(
+      "",
+    )}</div></section></div><div class="lower-grid"><section class="panel"><div class="panel-head"><div><h3>Mais vendidos</h3><small>DESTAQUES</small></div></div>${state.products
+    .slice(0, 4)
+    .map(
+      (p, i) =>
+        `<div class="rank"><span>0${i + 1}</span><img src="${imgOf(p)}"><div><b>${p.name}</b><small>${[124, 98, 81, 76][i]} vendas</small></div><em>${money(p.price)}</em></div>`,
+    )
+    .join(
+      "",
+    )}</section><section class="panel"><div class="panel-head"><div><h3>Status da loja</h3><small>OPERAÇÃO</small></div></div><p class="op-status"><span class="dot ${state.storeOpen ? "green" : ""}" style="background:${state.storeOpen ? "" : "var(--red)"}"></span>${state.storeOpen ? "Aberta agora" : "Pedidos pausados"}</p><div class="op-list">${state.storeOpen ? "Fecha às 23h30" : "Pausada manualmente"}<br>Tempo médio: 30–45 min<br>Pedido mínimo: R$ 20,00</div><button class="${state.storeOpen ? "button-danger" : "button"}" style="margin-top:16px" onclick="pauseStore()">${state.storeOpen ? "Pausar pedidos" : "Retomar pedidos"}</button></section></div>`;
+}
+function metric(a, b, c, i) {
+  return `<article class="metric"><span class="metric-icon">${i}</span><small>${a}</small><strong>${b}</strong><em>${c}</em></article>`;
+}
+function statusClass(s) {
+  return s === "Novo"
+    ? "new"
+    : s === "Preparação" || s === "Em preparo"
+      ? "prep"
+      : "delivery-status";
+}
+function orderRow(o) {
+  return `<div class="recent-row" onclick="openOrder(${o.id})"><div><b>${o.num}</b><small>${o.min} min</small></div><div><b>${o.name}</b><small>${o.items} itens · ${o.mode}</small></div><span class="status ${statusClass(o.status)}">${o.status === "Preparação" ? "Em preparo" : o.status}</span><div><b>${money(o.total)}</b></div></div>`;
+}
+function orders() {
+  let filters = ["Todos", "Novos", "Em preparo", "Em entrega"];
+  let cols = [
+    ["Novos", "Novo"],
+    ["Confirmados", "Confirmado"],
+    ["Em preparação", "Preparação"],
+    ["Em entrega", "Em entrega"],
+  ];
+  return `<div class="toolbar"><div class="tabs">${filters.map((f, i) => `<button class="${i === 0 ? "active" : ""}" onclick="filterOrders('${f}',this)">${f} <b>${[48, 4, 7, 3][i]}</b></button>`).join("")}</div><div class="toolbar-actions"><button class="button-secondary" onclick="toast('Atualizando pedidos…','info')">↻ Atualizar</button><button class="button" onclick="openOrderForm()">+ Novo pedido</button></div></div><div class="kanban" id="kanban">${cols
+    .map((c) =>
+      kanbanCol(
+        c[0],
+        c[1],
+        state.orders.filter((o) => o.status === c[1]),
+      ),
+    )
+    .join("")}</div>`;
+}
+function kanbanCol(label, status, list) {
+  return `<section class="kanban-col" data-status="${status}"><h3>${label}<span>${list.length}</span></h3>${list.length ? list.map((o) => `<article class="order-card" onclick="openOrder(${o.id})"><div class="order-top"><b>${o.num}</b><span class="elapsed">há ${o.min} min</span></div><p><b>${o.name}</b><br><small>${o.items} itens · ${o.mode}</small></p><div class="order-foot"><b>${money(o.total)}</b><button class="order-menu" onclick="event.stopPropagation();openOrder(${o.id})">•••</button></div></article>`).join("") : '<div class="empty">Nenhum pedido nesta etapa.</div>'}</section>`;
+}
+function filterOrders(f, btn) {
+  document
+    .querySelectorAll(".tabs button")
+    .forEach((x) => x.classList.remove("active"));
+  btn.classList.add("active");
+  let map = {
+    Todos: state.orders,
+    Novos: state.orders.filter((o) => o.status === "Novo"),
+    "Em preparo": state.orders.filter((o) => o.status === "Preparação"),
+    "Em entrega": state.orders.filter((o) => o.status === "Em entrega"),
+  };
+  let visible = map[f];
+  $("#kanban").innerHTML = [
+    ["Novos", "Novo"],
+    ["Confirmados", "Confirmado"],
+    ["Em preparação", "Preparação"],
+    ["Em entrega", "Em entrega"],
+  ]
+    .map((c) =>
+      kanbanCol(
+        c[0],
+        c[1],
+        visible.filter((o) => o.status === c[1]),
+      ),
+    )
+    .join("");
+}
+function products() {
+  return `<div class="product-tools"><div class="product-filters"><label class="search"><span>⌕</span><input placeholder="Buscar produtos" oninput="filterProducts(this.value)"></label><select class="select" onchange="filterProducts('',this.value)"><option value="">Todas categorias</option><option>Hambúrgueres</option><option>Combos</option><option>Porções</option></select><select class="select" onchange="availability(this.value)"><option value="">Disponibilidade</option><option value="active">Ativos</option><option value="inactive">Inativos</option></select></div><div class="toolbar-actions"><button class="button-secondary" onclick="toast('Modo de reordenação ativado','info')">↕ Reordenar</button><button class="button" onclick="openProductForm()">+ Novo produto</button></div></div><div class="products-grid" id="productsGrid">${productCards(state.products)}</div>`;
+}
+function productCards(list) {
+  return list.length
+    ? list
+        .map(
+          (p) =>
+            `<article class="product-card ${p.active ? "" : "inactive"}"><div class="product-img"><img src="${imgOf(p)}" alt="${p.name}">${p.tag ? `<span class="tag ${p.tag === "ESGOTADO" ? "stockout" : ""}">${p.tag}</span>` : ""}</div><div class="product-body"><small class="eyebrow">${p.category}</small><h3>${p.name}</h3><p>${p.desc}</p><div class="product-bottom"><strong>${money(+p.price)}</strong><input class="switch" type="checkbox" ${p.active ? "checked" : ""} onchange="toggleProduct(${p.id},this.checked)"></div></div><div class="card-actions"><button onclick="openProductForm(${p.id})">Editar</button><button onclick="duplicateProduct(${p.id})">Duplicar</button><button onclick="stockProduct(${p.id})">${p.tag === "ESGOTADO" ? "Repor" : "Esgotar"}</button><button onclick="confirmDelete('produto',${p.id})">Excluir</button></div></article>`,
+        )
+        .join("")
+    : '<div class="empty">Nenhum produto encontrado.</div>';
+}
+function filterProducts(v = "", cat = "") {
+  let q = v.toLowerCase();
+  $("#productsGrid").innerHTML = productCards(
+    state.products.filter(
+      (p) => p.name.toLowerCase().includes(q) && (!cat || p.category === cat),
+    ),
+  );
+}
+function availability(v) {
+  $("#productsGrid").innerHTML = productCards(
+    state.products.filter((p) => !v || (v === "active" ? p.active : !p.active)),
+  );
+}
+function tableHead(cols) {
+  return `<thead><tr>${cols.map((x) => `<th>${x}</th>`).join("")}<th>AÇÕES</th></tr></thead>`;
+}
+function categories() {
+  return `<div class="toolbar"><label class="search"><span>⌕</span><input placeholder="Buscar categoria" oninput="filterTable('categories',this.value)"></label><button class="button" onclick="openSimpleForm('category')">+ Nova categoria</button></div><section class="panel data-panel"><table class="table" id="categoriesTable">${tableHead(["CATEGORIA", "PRODUTOS", "STATUS", "ORDEM"])}<tbody>${categoryRows(state.categories)}</tbody></table></section>`;
+}
+function categoryRows(a) {
+  return a
+    .map(
+      (x) =>
+        `<tr><td><b style="font-size:18px;margin-right:10px">${x.icon}</b><b>${x.name}</b></td><td>${x.count} produtos</td><td><input type="checkbox" class="switch" ${x.active ? "checked" : ""} onchange="x=this.checked;persistRow('categories',${x.id},'active',x)"></td><td>#${x.order}</td>${actionCells("category", x.id)}</tr>`,
+    )
+    .join("");
+}
+function addons() {
+  let a = [
+    [
+      "Ponto da carne",
+      "Obrigatório",
+      "1",
+      "1",
+      "Hambúrgueres",
+      "Ao ponto, Mal passado, Bem passado",
+      "Ativo",
+    ],
+    [
+      "Molhos",
+      "Opcional",
+      "0",
+      "2",
+      "Todos os burgers",
+      "Maionese da casa, Barbecue, Picante",
+      "Ativo",
+    ],
+    [
+      "Extras",
+      "Opcional",
+      "0",
+      "3",
+      "Hambúrgueres e combos",
+      "Bacon +R$ 4,50, Cheddar +R$ 3,50, Cebola",
+      "Ativo",
+    ],
+    [
+      "Retirar ingredientes",
+      "Opcional",
+      "0",
+      "4",
+      "Hambúrgueres",
+      "Sem cebola, Sem picles, Sem molho",
+      "Ativo",
+    ],
+  ];
+  return `<div class="toolbar"><div><p class="eyebrow">PERSONALIZAÇÃO DE PRODUTOS</p><h2 class="section-title">Grupos de adicionais</h2></div><button class="button" onclick="openSimpleForm('addon')">+ Novo grupo</button></div><section class="panel data-panel"><table class="table">${tableHead(["GRUPO", "REGRAS", "PRODUTOS", "OPÇÕES", "STATUS"])}<tbody>${a.map((x, i) => `<tr><td><b>${x[0]}</b><br><small style="color:var(--muted)">${x[1]}</small></td><td>Mín. ${x[2]} · Máx. ${x[3]}</td><td>${x[4]}</td><td>${x[5]}</td><td><span class="mini-status" style="color:var(--green)">● ${x[6]}</span></td>${actionCells("addon", i + 1)}</tr>`).join("")}</tbody></table></section>`;
+}
+function coupons() {
+  return `<div class="toolbar"><label class="search"><span>⌕</span><input placeholder="Buscar cupom" oninput="filterTable('coupons',this.value)"></label><button class="button" onclick="openSimpleForm('coupon')">+ Novo cupom</button></div><section class="panel data-panel"><table class="table" id="couponsTable">${tableHead(["CÓDIGO", "DESCONTO", "PEDIDO MÍNIMO", "USOS", "VALIDADE", "STATUS"])}<tbody>${couponRows(state.coupons)}</tbody></table></section>`;
+}
+function couponRows(a) {
+  return a
+    .map(
+      (x) =>
+        `<tr><td><b style="color:var(--orange)">${x.code}</b><br><small style="color:var(--muted)">${x.type}</small></td><td>${x.value}</td><td>R$ ${x.min},00</td><td>${x.uses} / ${x.limit}</td><td>${x.date}</td><td><span class="status ${x.status === "Ativo" ? "delivery-status" : x.status === "Agendado" ? "new" : "new"}">${x.status}</span></td>${actionCells("coupon", x.id)}</tr>`,
+    )
+    .join("");
+}
+function areas() {
+  return `<div class="toolbar"><div><p class="eyebrow">COBERTURA</p><h2 class="section-title">Áreas de entrega</h2></div><button class="button" onclick="openSimpleForm('area')">+ Nova área</button></div><div class="dashboard-grid"><section class="panel data-panel"><table class="table">${tableHead(["REGIÃO", "TAXA", "TEMPO EXTRA", "MÍNIMO", "CEP / RAIO", "STATUS"])}<tbody>${state.areas.map((x) => `<tr><td><b>${x.name}</b></td><td style="color:var(--orange)">${money(x.fee)}</td><td>${x.extra}</td><td>R$ ${x.min},00</td><td>${x.cep}</td><td><input class="switch" type="checkbox" ${x.active ? "checked" : ""} onchange="persistRow('areas',${x.id},'active',this.checked)"></td>${actionCells("area", x.id)}</tr>`).join("")}</tbody></table></section><section class="panel"><div class="panel-head"><div><h3>Mapa de cobertura</h3><small>VISUALIZAÇÃO SIMPLIFICADA</small></div></div><div class="map"><i class="pin" style="left:48%;top:44%"></i><i class="pin" style="left:25%;top:25%"></i><i class="pin" style="left:68%;top:69%"></i></div><p style="font-size:11px;color:var(--muted)">● Centro &nbsp; ● Jardins &nbsp; ● Vila Nova</p></section></div>`;
+}
+function banners() {
+  let a = [
+    [
+      "Quinta da Brasa",
+      "Toda quinta · 18h–23h30",
+      "/promocoes/quinta",
+      "Ativo",
+      1,
+      "hero",
+    ],
+    ["Combo Casal", "01/07 a 31/08", "/combos/casal", "Ativo", 2, "bacon"],
+    [
+      "Frete grátis no Centro",
+      "Agendado · 20/08 a 27/08",
+      "/cupom/fretecentro",
+      "Agendado",
+      3,
+      "costela",
+    ],
+  ];
+  return `<div class="toolbar"><div><p class="eyebrow">CAMPANHAS</p><h2 class="section-title">Banners e promoções</h2></div><button class="button" onclick="openSimpleForm('banner')">+ Nova campanha</button></div><div class="products-grid">${a.map((x, i) => `<article class="product-card"><div class="product-img"><img src="${assets[x[5]]}" alt=""><span class="tag">${x[3]}</span></div><div class="product-body"><small class="eyebrow">PRIORIDADE ${x[4]} · DESKTOP / MOBILE</small><h3>${x[0]}</h3><p>${x[1]}<br>Destino: ${x[2]}</p><div class="product-bottom"><strong>${x[3]}</strong><input class="switch" type="checkbox" ${x[3] === "Ativo" ? "checked" : ""} onchange="toast('Status da campanha atualizado','ok')"></div></div><div class="card-actions"><button onclick="openSimpleForm('banner','${x[0]}')">Editar</button><button onclick="toast('Campanha duplicada','ok')">Duplicar</button><button onclick="confirmDelete('campanha',${i})">Excluir</button></div></article>`).join("")}</div>`;
+}
+function settings() {
+  let tabs = [
+    "Dados da loja",
+    "Operação",
+    "Horários",
+    "Pagamentos",
+    "Entrega e retirada",
+    "Notificações",
+    "Usuários",
+  ];
+  return `<div class="settings-tabs">${tabs.map((x, i) => `<button class="${i === 0 ? "active" : ""}" onclick="renderSetting('${x}',this)">${x}</button>`).join("")}</div><section class="panel settings-panel" id="settingsPanel">${settingsContent("Dados da loja")}</section>`;
+}
+function settingsContent(t) {
+  let bodies = {
+    "Dados da loja": `<h3>Dados da loja</h3><p>Informações exibidas para clientes e na operação.</p>${fields(
+      [
+        ["Nome da loja", "Brasa Burger Co."],
+        ["CNPJ", "12.345.678/0001-90"],
+        ["Telefone", "(11) 3333-2026"],
+        ["WhatsApp", "(11) 99999-2026"],
+        ["E-mail", "contato@brasaburger.com.br"],
+        ["Endereço", "Rua das Brasas, 147 — Centro"],
+      ],
+    )}`,
+    Operação: `<h3>Operação</h3><p>Controle a disponibilidade e o ritmo da loja.</p><div class="toggle-line">Loja aberta <input class="switch" type="checkbox" ${state.storeOpen ? "checked" : ""} onchange="pauseStore()"></div>${fields(
+      [
+        ["Tempo médio", "30–45 min"],
+        ["Pedido mínimo", "R$ 20,00"],
+        ["Motivo da pausa temporária", "Sem pausa ativa"],
+      ],
+    )}`,
+    Horários: `<h3>Horários de funcionamento</h3><p>Fuso de Brasília · configure cada dia individualmente.</p>${["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"].map((d, i) => `<div class="toggle-line">${d}<span><input class="switch" type="checkbox" ${i ? "checked" : ""}> <small style="color:var(--muted);margin-left:8px">${i ? "18:00 às 23:30" : "Fechada"}</small></span></div>`).join("")}`,
+    Pagamentos: `<h3>Formas de pagamento</h3><p>Defina meios aceitos no pedido demonstrativo.</p>${["Pix", "Cartão de crédito", "Cartão de débito", "Dinheiro", "Pagamento online"].map((x, i) => `<div class="toggle-line">${x}<input class="switch" type="checkbox" ${i < 4 ? "checked" : ""}></div>`).join("")}`,
+    "Entrega e retirada": `<h3>Entrega e retirada</h3><p>Preferências de atendimento para o cliente.</p>${["Habilitar entrega", "Habilitar retirada no balcão"].map((x) => `<div class="toggle-line">${x}<input class="switch" type="checkbox" checked></div>`).join("")}${fields(
+      [
+        ["Prazo padrão de entrega", "30–45 min"],
+        [
+          "Orientações de retirada",
+          "Aguarde a confirmação antes de se dirigir à loja.",
+        ],
+      ],
+    )}`,
+    Notificações: `<h3>Notificações</h3><p>Alertas visuais e canais demonstrativos.</p>${["Som de novo pedido", "Alertas visuais no painel", "Notificar por WhatsApp", "Notificar por e-mail"].map((x, i) => `<div class="toggle-line">${x}<input class="switch" type="checkbox" ${i < 2 ? "checked" : ""}></div>`).join("")}`,
+    Usuários: `<h3>Usuários administrativos</h3><p>Controle de acesso demonstrativo.</p><table class="table"><tbody><tr><td><b>Marina Silva</b><br><small style="color:var(--muted)">marina@brasaburger.com.br</small></td><td>Administrador</td><td><span class="mini-status" style="color:var(--green)">● Ativo</span></td><td><button class="button-secondary" onclick="toast('Permissões de Marina abertas','info')">Permissões</button></td></tr><tr><td><b>Eduardo Costa</b><br><small style="color:var(--muted)">eduardo@brasaburger.com.br</small></td><td>Operação</td><td><span class="mini-status" style="color:var(--green)">● Ativo</span></td><td><button class="button-secondary" onclick="toast('Permissões de Eduardo abertas','info')">Permissões</button></td></tr></tbody></table>`,
+  };
+  return (
+    bodies[t] +
+    `<div class="modal-foot"><button class="button" onclick="toast('Configurações salvas','ok')">Salvar alterações</button></div>`
+  );
+}
+function fields(a) {
+  return `<div class="form-grid">${a.map((x) => `<div class="field"><label>${x[0]}</label><input value="${x[1]}"></div>`).join("")}</div>`;
+}
+function renderSetting(t, b) {
+  document
+    .querySelectorAll(".settings-tabs button")
+    .forEach((x) => x.classList.remove("active"));
+  b.classList.add("active");
+  $("#settingsPanel").innerHTML = settingsContent(t);
+}
+function actionCells(type, id) {
+  return `<td class="row-actions"><button onclick="openSimpleForm('${type}',${id})">✎</button><button onclick="toast('Item duplicado com sucesso','ok')">⧉</button><button onclick="confirmDelete('${type}',${id})">⌫</button></td>`;
+}
+function persistRow(col, id, key, val) {
+  let o = state[col].find((x) => x.id === id);
+  o[key] = val;
+  save();
+  toast("Status atualizado", "ok");
+}
+function openOrder(id) {
+  let o = state.orders.find((x) => x.id === id),
+    fee = o.mode === "Entrega" ? 6.9 : 0,
+    subtotal = o.total - fee;
+  $("#drawer").innerHTML =
+    `<div class="drawer-head"><div><p class="eyebrow">PEDIDO ${o.num}</p><h2>${o.status}</h2><span class="status ${statusClass(o.status)}">há ${o.min} min</span></div><button class="close" onclick="closeOverlays()">×</button></div><div class="customer"><b>${o.name}</b><small>(11) 9${o.id}888-2026 · ${o.mode}</small></div><div class="drawer-section"><h4>ITENS DO PEDIDO</h4><div class="item-line"><div><b>1× Brasa Bacon</b><small>Sem cebola · Bacon extra</small></div><b>R$ 43,40</b></div>${o.items > 2 ? '<div class="item-line"><div><b>1× Batata Brasa</b><small>Cheddar e bacon</small></div><b>R$ 24,90</b></div>' : ""}</div><div class="drawer-section"><h4>RESUMO</h4><div class="total-line"><span>Subtotal</span><span>${money(subtotal)}</span></div><div class="total-line"><span>Taxa de entrega</span><span>${fee ? money(fee) : "Grátis"}</span></div><div class="total-line"><span>Desconto</span><span>R$ 0,00</span></div><div class="total-line total"><span>Total</span><span>${money(o.total)}</span></div></div><div class="drawer-section"><h4>${o.mode === "Entrega" ? "ENDEREÇO DE ENTREGA" : "RETIRADA NO BALCÃO"}</h4><p style="font-size:12px;line-height:1.6;margin:0">${o.mode === "Entrega" ? 'Rua das Palmeiras, 242 · Apto 82<br>Jardins — São Paulo/SP<br><span style="color:var(--muted)">Referência: portão preto ao lado da farmácia.</span>' : "Rua das Brasas, 147 — Centro"}</p></div><div class="drawer-section"><h4>ATENDIMENTO</h4><p style="font-size:12px">Prazo estimado: <b>35–50 min</b><br>Pagamento: <b>Pix na entrega</b><br>Troco: <b>Não precisa</b></p></div><div class="drawer-section"><h4>LINHA DO TEMPO</h4><div class="timeline"><p>Pedido recebido · há ${o.min} min</p>${o.status !== "Novo" ? "<p>Pedido confirmado pela operação</p>" : ""}${o.status === "Preparação" || o.status === "Em entrega" ? "<p>Pedido enviado para a cozinha</p>" : ""}</div></div><div class="drawer-actions"><button class="button-secondary" onclick="toast('Comanda enviada para impressão','ok')">⌑ Imprimir comanda</button><button class="button-secondary" onclick="toast('Abrindo conversa no WhatsApp','info')">◔ Falar com cliente</button><button class="button-danger" onclick="confirmReject(${o.id})">Recusar pedido</button><button class="button wide" onclick="advanceOrder(${o.id})">${o.status === "Novo" ? "Confirmar pedido" : o.status === "Confirmado" ? "Enviar para preparo" : o.status === "Preparação" ? "Saiu para entrega" : "Pedido entregue"} →</button></div>`;
+  $("#backdrop").classList.add("show");
+  $("#drawer").classList.add("show");
+}
+function advanceOrder(id) {
+  let o = state.orders.find((x) => x.id === id),
+    map = {
+      Novo: "Confirmado",
+      Confirmado: "Preparação",
+      Preparação: "Em entrega",
+      "Em entrega": "Entregue",
+    };
+  o.status = map[o.status];
+  save();
+  toast(`Pedido ${o.num} atualizado para ${o.status}`, "ok");
+  closeOverlays();
+  if (state.page === "orders") go("orders");
+  else go(state.page);
+}
+function confirmReject(id) {
+  confirmAction(
+    "Recusar pedido?",
+    "O pedido será marcado como recusado.",
+    () => {
+      state.orders = state.orders.filter((o) => o.id !== id);
+      save();
+      closeOverlays();
+      toast("Pedido recusado", "error");
+      go(state.page);
+    },
+  );
+}
+function openProductForm(id) {
+  let p = id
+    ? state.products.find((x) => x.id === id)
+    : {
+        name: "",
+        desc: "",
+        category: "Hambúrgueres",
+        price: "",
+        img: "",
+        active: true,
+        tag: "",
+      };
+  openModal(
+    `<div class="modal-head"><div><p class="eyebrow">${id ? "EDITAR" : "CADASTRAR"} PRODUTO</p><h2>${id ? "Editar produto" : "Novo produto"}</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="image-upload full" id="preview" onclick="this.querySelector('input').click()">${p.img ? `<img src="${p.img}">` : "Clique para escolher uma imagem"}<input type="file" accept="image/*" style="display:none" onchange="previewFile(this)"></div><div class="field"><label>Nome *</label><input id="prodName" value="${p.name}" placeholder="Ex.: Brasa Bacon"></div><div class="field"><label>Categoria *</label><select id="prodCat"><option>${p.category}</option><option>Hambúrgueres</option><option>Combos</option><option>Porções</option></select></div><div class="field full"><label>Descrição *</label><textarea id="prodDesc">${p.desc}</textarea></div><div class="field"><label>Preço *</label><input id="prodPrice" value="${p.price}" placeholder="38,90"></div><div class="field"><label>Preço promocional</label><input placeholder="Opcional"></div><div class="field"><label>Ingredientes</label><input value="Blend, cheddar, bacon, molho da casa"></div><div class="field"><label>Grupo de adicionais</label><select><option>Extras e molhos</option><option>Ponto da carne</option></select></div><div class="field"><label>Tempo de preparo</label><input value="18 min"></div><div class="field"><label>Código interno</label><input placeholder="Opcional"></div></div><div class="toggle-line">Produto ativo<input class="switch" id="prodActive" type="checkbox" ${p.active ? "checked" : ""}></div><div class="toggle-line">Marcar como destaque<input class="switch" id="prodFeatured" type="checkbox" ${p.tag ? "checked" : ""}></div><div class="toggle-line">Marcar como esgotado<input class="switch" id="prodStock" type="checkbox" ${p.tag === "ESGOTADO" ? "checked" : ""}></div><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button" onclick="saveProduct(${id || 0})">Salvar produto</button></div>`,
+  );
+}
+function previewFile(input) {
+  let f = input.files[0];
+  if (f) {
+    let r = new FileReader();
+    r.onload = () => ($("#preview").innerHTML = `<img src="${r.result}">`);
+    r.readAsDataURL(f);
+  }
+}
+function saveProduct(id) {
+  let n = $("#prodName").value.trim(),
+    d = $("#prodDesc").value.trim(),
+    price = parseFloat($("#prodPrice").value.replace(",", "."));
+  if (!n || !d || !price) {
+    if (!n) $("#prodName").parentElement.classList.add("invalid");
+    if (!d) $("#prodDesc").parentElement.classList.add("invalid");
+    if (!price) $("#prodPrice").parentElement.classList.add("invalid");
+    toast("Preencha os campos obrigatórios", "error");
+    return;
+  }
+  let obj = {
+    id: id || Date.now(),
+    name: n,
+    desc: d,
+    price,
+    category: $("#prodCat").value,
+    img: id ? state.products.find((p) => p.id === id).img : assets.bacon,
+    active: $("#prodActive").checked,
+    tag: $("#prodStock").checked
+      ? "ESGOTADO"
+      : $("#prodFeatured").checked
+        ? "DESTAQUE"
+        : "",
+  };
+  if (id)
+    Object.assign(
+      state.products.find((p) => p.id === id),
+      obj,
+    );
+  else state.products.unshift(obj);
+  save();
+  closeModal();
+  toast(id ? "Produto atualizado" : "Produto criado com sucesso", "ok");
+  go("products");
+}
+function openSimpleForm(type, id = "") {
+  let labels = {
+    category: ["categoria", "Nome da categoria", "Ordem de exibição"],
+    addon: ["grupo de adicionais", "Nome do grupo", "Mínimo / máximo"],
+    coupon: ["cupom", "Código", "Tipo de desconto"],
+    area: ["área de entrega", "Nome da região", "Taxa de entrega"],
+    banner: ["campanha", "Título", "Período de exibição"],
+  }[type];
+  openModal(
+    `<div class="modal-head"><div><p class="eyebrow">GERENCIAR ${labels[0].toUpperCase()}</p><h2>${id ? "Editar" : "Novo"} ${labels[0]}</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field full"><label>${labels[1]} *</label><input id="simpleName" value="${typeof id === "string" ? id : ""}" placeholder="Informe ${labels[1].toLowerCase()}"></div><div class="field"><label>${labels[2]}</label><input placeholder="Informe um valor"></div><div class="field"><label>Status</label><select><option>Ativo</option><option>Inativo</option></select></div><div class="field full"><label>Observações</label><textarea placeholder="Informações adicionais para a operação"></textarea></div></div><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button" onclick="saveSimple('${type}',${typeof id === "number" ? id : 0})">Salvar</button></div>`,
+  );
+}
+function saveSimple(type, id) {
+  let n = $("#simpleName").value.trim();
+  if (!n) {
+    $("#simpleName").parentElement.classList.add("invalid");
+    toast("Preencha o campo obrigatório", "error");
+    return;
+  }
+  if (type === "category" && !id)
+    state.categories.push({
+      id: Date.now(),
+      name: n,
+      count: 0,
+      active: true,
+      order: state.categories.length + 1,
+      icon: "◈",
+    });
+  if (type === "coupon" && !id)
+    state.coupons.unshift({
+      id: Date.now(),
+      code: n.toUpperCase(),
+      type: "Percentual",
+      value: "10%",
+      min: 20,
+      uses: 0,
+      limit: 100,
+      date: "31/12/2026",
+      status: "Ativo",
+    });
+  if (type === "area" && !id)
+    state.areas.push({
+      id: Date.now(),
+      name: n,
+      fee: 7.9,
+      extra: "5–10 min",
+      min: 20,
+      cep: "A definir",
+      active: true,
+    });
+  save();
+  closeModal();
+  toast(`${labelsFor(type)} salvo com sucesso`, "ok");
+  go(state.page);
+}
+function labelsFor(t) {
+  return {
+    category: "Categoria",
+    addon: "Grupo de adicionais",
+    coupon: "Cupom",
+    area: "Área de entrega",
+    banner: "Campanha",
+  }[t];
+}
+function toggleProduct(id, x) {
+  state.products.find((p) => p.id === id).active = x;
+  save();
+  toast(x ? "Produto ativado" : "Produto desativado", "ok");
+}
+function duplicateProduct(id) {
+  let p = state.products.find((p) => p.id === id);
+  state.products.push({ ...p, id: Date.now(), name: p.name + " (cópia)" });
+  save();
+  toast("Produto duplicado", "ok");
+  go("products");
+}
+function stockProduct(id) {
+  let p = state.products.find((p) => p.id === id);
+  p.tag = p.tag === "ESGOTADO" ? "" : "ESGOTADO";
+  save();
+  toast(
+    p.tag ? "Produto marcado como esgotado" : "Produto disponível novamente",
+    "ok",
+  );
+  go("products");
+}
+function confirmDelete(type, id) {
+  confirmAction(
+    `Excluir ${labelsFor(type) || type}?`,
+    "Esta ação pode ser desfeita somente recriando o item.",
+    () => {
+      let map = {
+        produto: "products",
+        category: "categories",
+        coupon: "coupons",
+        area: "areas",
+      };
+      if (map[type])
+        state[map[type]] = state[map[type]].filter((x) => x.id !== id);
+      save();
+      closeModal();
+      toast(`${labelsFor(type) || type} excluído`, "error");
+      go(state.page);
+    },
+  );
+}
+function confirmAction(title, text, fn) {
+  pendingAction = fn;
+  openModal(
+    `<div class="modal-head"><div><p class="eyebrow">CONFIRMAÇÃO</p><h2>${title}</h2></div><button class="close" onclick="closeModal()">×</button></div><p style="color:var(--muted);line-height:1.6">${text}</p><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button-danger" onclick="runConfirm()">Confirmar ação</button></div>`,
+  );
+}
+function runConfirm() {
+  if (pendingAction) {
+    let action = pendingAction;
+    pendingAction = null;
+    action();
+  }
+}
+function openOrderForm() {
+  openModal(
+    `<div class="modal-head"><div><p class="eyebrow">LANÇAMENTO MANUAL</p><h2>Novo pedido</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Cliente *</label><input id="manualName" placeholder="Nome do cliente"></div><div class="field"><label>Modalidade *</label><select id="manualMode"><option>Entrega</option><option>Retirada</option></select></div><div class="field"><label>Itens</label><select><option>Brasa Bacon + Batata</option><option>Combo Casal</option></select></div><div class="field"><label>Total</label><input id="manualTotal" value="45,80"></div></div><div class="modal-foot"><button class="button-secondary" onclick="closeModal()">Cancelar</button><button class="button" onclick="saveManualOrder()">Criar pedido</button></div>`,
+  );
+}
+function saveManualOrder() {
+  let n = $("#manualName").value.trim();
+  if (!n) {
+    toast("Informe o nome do cliente", "error");
+    return;
+  }
+  state.orders.unshift({
+    id: Date.now(),
+    num: "#" + (1049 + state.orders.length),
+    name: n,
+    status: "Novo",
+    min: 0,
+    mode: $("#manualMode").value,
+    total: +$("#manualTotal").value.replace(",", "."),
+    items: 2,
+  });
+  save();
+  closeModal();
+  toast("Novo pedido criado", "ok");
+  go("orders");
+}
+function pauseStore() {
+  state.storeOpen = !state.storeOpen;
+  save();
+  $("#storeStatus").textContent = state.storeOpen
+    ? "Loja aberta"
+    : "Loja pausada";
+  toast(
+    state.storeOpen ? "Pedidos retomados" : "Pedidos pausados temporariamente",
+    state.storeOpen ? "ok" : "info",
+  );
+  go(state.page);
+}
+function openModal(content) {
+  $("#modalRoot").innerHTML =
+    `<div class="modal form-modal show">${content}</div>`;
+  $("#backdrop").classList.add("show");
+}
+function closeModal() {
+  $("#modalRoot").innerHTML = "";
+  $("#backdrop").classList.remove("show");
+}
+function closeOverlays() {
+  closeModal();
+  $("#drawer").classList.remove("show");
+  $("#backdrop").classList.remove("show");
+}
+function toast(msg, type = "ok") {
+  let el = document.createElement("div");
+  el.className = "toast " + (type === "ok" ? "" : type);
+  el.textContent = msg;
+  $("#toastRoot").append(el);
+  setTimeout(() => el.remove(), 3200);
+}
+function toggleSidebar(force) {
+  let s = $("#sidebar"),
+    shade = $(".mobile-shade"),
+    show = force === undefined ? !s.classList.contains("show") : force;
+  s.classList.toggle("show", show);
+  shade.classList.toggle("show", show);
+}
+function globalSearch(v) {
+  if (!v) return;
+  if (state.page !== "orders") go("orders");
+  setTimeout(() => {
+    let cards = [...document.querySelectorAll(".order-card")];
+    cards.forEach(
+      (c) =>
+        (c.style.display = c.textContent.toLowerCase().includes(v.toLowerCase())
+          ? "block"
+          : "none"),
+    );
+  }, 240);
+}
+function filterTable(type, q) {
+  let val = q.toLowerCase();
+  if (type === "categories")
+    $("#categoriesTable tbody").innerHTML = categoryRows(
+      state.categories.filter((x) => x.name.toLowerCase().includes(val)),
+    );
+  if (type === "coupons")
+    $("#couponsTable tbody").innerHTML = couponRows(
+      state.coupons.filter((x) => x.code.toLowerCase().includes(val)),
+    );
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeOverlays();
+});
+renderNav();
+go(state.page);
